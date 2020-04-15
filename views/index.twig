@@ -1,0 +1,17 @@
+{% extends 'layout.twig' %}
+
+{% block stylesheets %}
+  {{ parent() }}
+{% endblock %}
+
+{% block scripts %}
+  {{ parent() }}
+{% endblock %}
+
+{% block content %}
+  <h1>{{title}}</h1>
+  <p>Welcome to {{title}}</p>
+  
+  <a href="/publish-tx">Publish tx (public api)</a>
+  <a href="/decode-raw-tx">Decode raw tx (private api)</a>
+{% endblock %}
