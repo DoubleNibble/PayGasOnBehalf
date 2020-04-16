@@ -9,7 +9,9 @@ var ipfilter = require('express-ipfilter').IpFilter;
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var publishTxRouter = require('./routes/publish-tx');
-var decodeRawRouter = require('./routes/decode-raw-tx');
+var tourRouter = require('./routes/tour');
+
+// var decodeRawRouter = require('./routes/decode-raw-tx');
 
 var app = express();
 
@@ -27,11 +29,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/publish-tx', publishTxRouter);
+app.use('/tour', tourRouter);
 
 // private endpoints
-var ipsLoopback = ['127.0.0.1','::1'];
-app.use(ipfilter(ipsLoopback,{mode:'allow'}));
-app.use('/decode-raw-tx', decodeRawRouter);
+// var ipsLoopback = ['127.0.0.1','::1'];
+// app.use(ipfilter(ipsLoopback,{mode:'allow'}));
+// app.use('/decode-raw-tx', decodeRawRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

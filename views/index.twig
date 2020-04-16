@@ -2,6 +2,12 @@
 
 {% block stylesheets %}
   {{ parent() }}
+  <style>
+    #buttons {
+      width: 100%;
+      display: flex;
+    }
+  </style>
 {% endblock %}
 
 {% block scripts %}
@@ -9,9 +15,21 @@
 {% endblock %}
 
 {% block content %}
-  <h1>{{title}}</h1>
-  <p>Welcome to {{title}}</p>
+  <div class="jumbotron">
+    <h1 class="display-4">{{title}}</h1>
+    <p class="lead">Why shouldn't you start playing with the blockchain if you already have a wallet?</p>
+    <hr class="my-4">
+    <p>Let's be honest: going through AML + KYC is just a pain if you only need that little bit of <i>ether</i> to use a Smart Contract.</p>
+    <p>But if you're lucky enough to get into our whitelist...</p>
+    <h3>Our Publisher will pay that for you! <i class="fa fa-magic" style="color:green;"></i></h3>
+    <div id="buttons" class="mt-4">
+      <a class="btn btn-primary mr-auto" href="/tour">Take a tour</a>
+      <a class="btn btn-secondary ml-auto" href="/publish-tx">Dev (test API)</a>
+    </div>
+  </div>
   
-  <a href="/publish-tx">Publish tx (public api)</a>
-  <a href="/decode-raw-tx">Decode raw tx (private api)</a>
+  {#
+    <a href="/publish-tx">Publish tx (public api)</a>
+    <a href="/decode-raw-tx">Decode raw tx (private api)</a> 
+  #}
 {% endblock %}

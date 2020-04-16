@@ -2,7 +2,12 @@
 var express = require('express');
 var router = express.Router();
 
-const {decodeTx,checkAgainstWhitelist,wrapClientTx} = require('../private/ethereum-utils');
+const {
+  decodeTx,
+  checkAgainstWhitelist,
+  wrapClientTx,
+  builPublisherTx
+} = require('../private/ethereum-utils');
 const ethTx = require('../private/ethereumjs-tx-1.3.3');
 
 // TODO remove when in prod
@@ -10,8 +15,8 @@ const EG_INVALID_TX = '0xf90339018506fc23ac0083100000940000000000000000000000000
 const EG_VALID_TX = '0xf8830308827a08943673b368babf8a7015cbec48a3ad1b7741bd151e80a42e1a7d4d00000000000000000000000000000000000000000000000000b1a2bc2ec500002aa07caefce22135185684d0cd8fd79e272dee6157cebb3397824f81458ff6106c60a0695cefa533e163b9dce71ed6246be04b407f27eed2c86f8c77d10c08cee9a48e';
 
 /* GET -> Json (query_params: [rawTx]) */
-router.get('/', function(req, res, next) {
-  var pubTx, pubTxParams;
+router.get('/', async(req, res, next) => {
+  var pubTx, pubTxParams, pubTxHash;
   var rawTx = req.query.rawTx || EG_VALID_TX;
   var query = {
     rawTx: rawTx,
@@ -42,20 +47,23 @@ router.get('/', function(req, res, next) {
 
   // build publisher tx
   if (! result.errors.length) {
-   
-    pubTxParams = {
-      // TODO manage parameters for tx publishing
-      value: undefined,
-      nonce: undefined,
-      gasPrice: undefined,
-      gasLimit: undefined,
-      
+    // obtain the build object from the util method
+    let build_obj = await builPublisherTx({
       to: query.objTx.to,
       // SC function id called by the client
-      input: query.objTx.data.substring(0,8) + wrapClientTx(query.bufferedTx).toString("hex")
+      data: query.objTx.data.substring(0,8) + wrapClientTx(query.bufferedTx).toString("hex")
+    });
+    pubTxParams = build_obj.params;
+
+    // console.log(build_obj.result);
+
+    // if no errors we're ready to go
+    if (!build_obj.errors.length) {
+      pubTx = build_obj.result.rawTransaction;
+      pubTxHash = build_obj.result.messageHash;
+    } else {
+      result.errors.push(...build_obj.errors);
     }
-    // TODO create publisher new tx
-    pubTx = "{TODO}";
   }
   
   result.publishing = ! result.errors.length;
@@ -63,11 +71,12 @@ router.get('/', function(req, res, next) {
   res.setHeader('Content-Type', 'application/json');
   // TODO remove debug when in prod
   let debug = {
-    rawTx:rawTx,
-    objTx:query.objTx,
-    rawTxParams:query.bufferedTx.toJSON(),
+    rawTx: rawTx,
+    objTx: query.objTx,
+    rawTxParams: query.bufferedTx.toJSON(),
     publisherTxParams: pubTxParams,
-    publisherTx: pubTx
+    publisherTx: pubTx,
+    publisherTxHash: pubTxHash
   }
 
   res.end(JSON.stringify({

@@ -1,5 +1,5 @@
 const rlp = require('rlp');
-const ethereumjs = require('../private/ethereumjs-tx-1.3.3');
+const ethTx = require('../private/ethereumjs-tx-1.3.3');
 const Web3 = require('../node_modules/web3');
 
 // TODO get env
@@ -11,6 +11,19 @@ const RPC_PROVIDER = "https://ropsten.infura.io/v3/4dea9169133246318e58fe7ac1bdb
 
 const web3 = new Web3(new Web3.providers.HttpProvider(RPC_PROVIDER));
 
+const DEFAULT_PUBLISHER_TX_PARAMS = {
+    nonce: undefined, // web3 will use web3.eth.getTransactionCount() if let undefined
+    
+    chainId: web3.utils.toHex(3), // ropsten 3, mainnet 1
+
+    gasPrice: web3.utils.toHex(web3.utils.toWei('10', 'gwei')),
+    gasLimit: web3.utils.toHex(30000),
+    value: web3.utils.toHex(web3.utils.toWei('0','ether'))
+};
+
+// eg
+// const KEYFILE_PATH = process.env.KEYFILE_PATH;
+
 
 const numToHex = (n) => {
     let res;
@@ -18,6 +31,10 @@ const numToHex = (n) => {
     catch {res=0;}
     if (isNaN(res)){res=0;}
     return web3.utils.toHex(res)
+}
+
+const prefixed0x = (s) => {
+    return (s.startsWith("0x") ? s : ("0x" + s))
 }
 
 const TX_FIELDS = [
@@ -97,7 +114,7 @@ const WHITELIST = {
 
 // from raw hex to js object formatted
 function decodeTx(hex) {
-  var tx = new ethereumjs.Tx(hex);
+  var tx = new ethTx.Tx(hex);
 
   var rawTx = {
       nonce: parseInt(tx.nonce.toString('hex'),16),
@@ -150,8 +167,60 @@ function checkAgainstWhitelist(obj) {
     }
 }
 
+// build a tx signed by the publisher
+// that means: build raw tx and sign with publisher pkey
+// web3.accounts.signTransaction is async so we must use async on this util func too and make use of await
+const buildPublisherTx = async(params) => {
+    /* 
+    if all goes well the result will be = {
+        messageHash - String: The hash of the given message.
+        r - String: First 32 bytes of the signature
+        s - String: Next 32 bytes of the signature
+        v - String: Recovery value + 27
+        rawTransaction - String: The RLP encoded transaction, ready to be send using web3.eth.sendSignedTransaction.
+    }
+    otherwise (errors.length >= 1)
+    */
+    let res = {
+        errors: [],
+        result: undefined,
+        params: undefined
+    };
+
+    // override defaults
+    let pubTxParams = {
+        ...DEFAULT_PUBLISHER_TX_PARAMS,
+        ...params
+    }
+    // make sure every param is a 0x prefixed hex string
+    for (let i = 0; i < TX_FIELDS.length; i++) {
+        let fld = TX_FIELDS[i];
+        let val = pubTxParams[fld]
+        if (val !== undefined) {
+            if (typeof(val) == "number") {val = numToHex(val);} 
+            else if (typeof(val) == "string") {val = prefixed0x(val);}
+            else {res.errors.push("only strings and numbers allowed as tx params");}
+        }
+        pubTxParams[fld] = val;
+    }
+
+    // for debugging purposes
+    res.params = pubTxParams;
+
+    // build and sign the tx
+    await web3.eth.accounts.signTransaction(
+        pubTxParams,
+        publisher_account.privateKey
+    )
+        .then((r) => {res.result = r;})
+        .catch((e) => {res.errors.push(e.toString());});
+    
+    return res
+};
+
 module.exports = {
     decodeTx: decodeTx,
-    checkAgainstWhitelist: checkAgainstWhitelist ,
-    wrapClientTx: wrapClientTx
+    checkAgainstWhitelist: checkAgainstWhitelist,
+    wrapClientTx: wrapClientTx,
+    builPublisherTx: buildPublisherTx
 };
