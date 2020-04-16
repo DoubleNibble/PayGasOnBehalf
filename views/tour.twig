@@ -35,11 +35,63 @@
 
 {% block scripts %}
   {{ parent() }}
+  <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.0.0-beta.34/dist/web3.min.js"></script>
   <script>
     var $carousel = $('.carousel');
     var hash = $(location).attr('hash');
     if (hash == "#service") {$carousel.carousel(4);}
     $carousel.carousel("pause");
+
+    const RPC_PROVIDER = "https://ropsten.infura.io/v3/4dea9169133246318e58fe7ac1bdbdef";
+    const web3 = new Web3(new Web3.providers.HttpProvider(RPC_PROVIDER));
+
+    var $newWallet = $('#new-wallet-btn');
+    var $customWallet = $('#sync-wallet-btn');
+    var $walletSection = $("#wallet-section");
+    var $walletAddress = $("#wallet-address");
+    var $walletBalance = $("#wallet-balance");
+    var $walletRefresh = $("#wallet-refresh");
+    var myPk;
+
+    function turnOnCustom() {
+      $customWallet.removeClass('btn-warning').addClass('btn-success');
+      $newWallet.removeClass('btn-success').addClass('btn-warning');
+    }
+
+    function turnOnNew() {
+      $newWallet.removeClass('btn-warning').addClass('btn-success');
+      $customWallet.removeClass('btn-success').addClass('btn-warning');
+    }
+
+    function showWallet(addr,callback){
+      $walletSection.addClass("bg-warning");
+      $walletAddress.text(addr);
+      $walletBalance.text("");
+      $walletBalance.html('<i class="fa fa-spinner"></i>')
+      web3.eth.getBalance(addr).then(function(balance){
+        $walletBalance.text(balance);
+        $walletSection.removeClass("bg-warning");
+        if(callback !== undefined){callback()}
+      })
+    }
+
+    function pk2Wallet(pk,callback){
+      let acc = web3.eth.accounts.privateKeyToAccount(pk);
+      if (acc){myPk = acc.privateKey;}
+      showWallet(acc.address,callback);
+    }
+
+    $walletRefresh.on("click",function(){
+      pk2Wallet(myPk);
+    });
+
+    $newWallet.on("click",function(){
+      let acc = web3.eth.accounts.create();
+      pk2Wallet(
+        acc.privateKey,
+        function() {turnOnNew();}
+      )
+    })
   </script>
 {% endblock %}
 
@@ -77,13 +129,14 @@
       <div class="carousel-item" data-interval="{{INTERVAL}}">
         <div class="center-translate text-center">
           <h1>
-            To grant people outside of country A to be payed even if they own 0 <i>ETH</i> we built a shocking service!
+            To grant people to be payed even if they own 0 <i>ETH</i> we built a shocking service!
             <i class="fa fa-child"></i>
           </h1>
         </div>  
       </div>
       <div class="carousel-item" data-interval="{{INTERVAL}}">
         <div class="center-translate w-75">
+          This example makes use of the ropsten test network.
           <form class="">
             <div class="form-group">
               <label for="exampleFormControlSelect1">Your Country</label>
@@ -102,8 +155,31 @@
             <button class="btn btn-primary disabled" type="submit" method="POST" disabled>Get Payed!</button>
           </form>
           <hr/>
-          <div class="w-100 text-center">
-            <button class="btn btn-warning" id="sync-wallet-btn">Sync your wallet with MetaMask</button>
+          <div class="w-100 d-flex">
+            <button class="btn btn-warning mr-auto" id="new-wallet-btn">
+              Create a fresh new wallet
+            </button>
+            <div class="btn-group ml-auto">
+              <button id="sync-wallet-btn" class="btn btn-warning dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Use a custom Private Key
+              </button>
+              <div class="dropdown-menu">
+                <a class="dropdown-item bg-success" href="#" data-pk="0x0689b0f63ff393cdc1085e3acef85a3d8334b98a2c32ac294f623245a2814674" onclick="pk2Wallet($(this).attr('data-pk'),function(){turnOnCustom();});">Whitelisted [1]</a>
+                <a class="dropdown-item bg-success" href="#" data-pk="0x64cc5e6db47fd9b3de42856546f8f1b682660e67f5b1fe91c8a4fb797eb9a79f" onclick="pk2Wallet($(this).attr('data-pk'),function(){turnOnCustom();});">Whitelisted [2]</a>
+                <a class="dropdown-item bg-success" href="#" data-pk="0x6c9bf9127fc4f978e0d4350d7f5db93a9458f807e97b195d5ab9e092d391d978" onclick="pk2Wallet($(this).attr('data-pk'),function(){turnOnCustom();});">Whitelisted [3]</a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item bg-danger" href="#" data-pk="0xffd65b9d6efcac604b5473d39c13c1b2c5f55f5c86a2fb61e3ccd713274b11bb" onclick="pk2Wallet($(this).attr('data-pk'),function(){turnOnCustom();});">Not Whitelisted [1]</a>
+                <a class="dropdown-item bg-danger" href="#" data-pk="0xfcdf054274554ecf4adbfa97ea64dc4236a4fb62f015d41016dbe2f9c1c7db1f" onclick="pk2Wallet($(this).attr('data-pk'),function(){turnOnCustom();});">Not Whitelisted [2]</a>
+                <a class="dropdown-item bg-danger" href="#" data-pk="0x59c8119ea2748468a60c2893d4ea08c4c941ef60a13101ae5b537367701dec64" onclick="pk2Wallet($(this).attr('data-pk'),function(){turnOnCustom();});">Not Whitelisted [3]</a>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 bg-warning" id="wallet-section">
+            <div class="w-50">
+              <h5>Your address is: <b><span id="wallet-address">ND</span></b></h5>
+              <h5>Your balance is: <b><span id="wallet-balance">ND</span></b></h5>
+            </div>
+            <button class="btn btn-secondary" id="wallet-refresh">Refresh Balance</button>
           </div>
         </div>  
       </div>
