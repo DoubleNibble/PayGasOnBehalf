@@ -27,8 +27,9 @@
       height: 100%;
       background-color: #AAA;
     }
-    button.disabled {
-      cursor: not-allowed;
+    .disabled {
+      cursor: not-allowed!important;
+      pointer-events: auto!important;
     }
   </style>
 {% endblock %}
@@ -51,7 +52,18 @@
     var $walletAddress = $("#wallet-address");
     var $walletBalance = $("#wallet-balance");
     var $walletRefresh = $("#wallet-refresh");
+    var $checkEtherscan = $("#check-on-etherscan");
     var myPk;
+
+    function disable($obj,v = true){
+      if(v){
+        $obj.prop("disabled",true);
+        $obj.addClass("disabled");
+      } else {
+        $obj.prop("disabled",false);
+        $obj.removeClass("disabled");
+      }
+    }
 
     function turnOnCustom() {
       $customWallet.removeClass('btn-warning').addClass('btn-success');
@@ -77,7 +89,15 @@
 
     function pk2Wallet(pk,callback){
       let acc = web3.eth.accounts.privateKeyToAccount(pk);
-      if (acc){myPk = acc.privateKey;}
+      if (acc && acc.privateKey){
+        myPk = acc.privateKey;
+        disable($walletRefresh,false);
+        disable($checkEtherscan,false);
+        $checkEtherscan.prop("href",`https://etherscan.io/address/${acc.address}`);
+      } else {
+        disable($walletRefresh,true);
+        disable($checkEtherscan,true);
+      }
       showWallet(acc.address,callback);
     }
 
@@ -176,11 +196,12 @@
           </div>
           <div class="mt-4 bg-warning" id="wallet-section">
             <div class="w-50">
-              <h5>Your address is: <b><span id="wallet-address">ND</span></b></h5>
+              <h5>Your address is: <p><b><span id="wallet-address">ND</span></b></h5></p>
               <h5>Your balance is: <b><span id="wallet-balance">ND</span></b></h5>
             </div>
-            <button class="btn btn-secondary" id="wallet-refresh">Refresh Balance</button>
           </div>
+          <button class="btn btn-secondary disabled" id="wallet-refresh" disabled>Refresh Balance</button>
+          <a class="btn btn-secondary disabled" id="check-on-etherscan" href="" disabled target="_etherscan">Check on Etherscan</a>
         </div>  
       </div>
     </div>
