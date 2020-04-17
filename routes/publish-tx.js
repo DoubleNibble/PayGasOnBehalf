@@ -61,6 +61,9 @@ router.get('/', async(req, res, next) => {
     if (!build_obj.errors.length) {
       pubTx = build_obj.result.rawTransaction;
       pubTxHash = build_obj.result.messageHash;
+
+      // TODO ACTIVATE BLOCKCHAIN PUBLISHING WHEN READY
+      
     } else {
       result.errors.push(...build_obj.errors);
     }

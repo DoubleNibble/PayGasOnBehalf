@@ -1,6 +1,8 @@
 {% extends 'layout.twig' %}
 
 {% set INTERVAL = 99999999 %}
+{% set SC_ADDRESS = "0x3673b368babf8a7015cbec48a3ad1b7741bd151e" %}
+{% set SC_FUNC_ID = "2e1a7d4d" %}
 
 {% block stylesheets %}
   {{ parent() }}
@@ -31,20 +33,47 @@
       cursor: not-allowed!important;
       pointer-events: auto!important;
     }
+    #user-console {
+      border-width:5px;  
+      border-style:inset;
+      background-color: #000;
+      color: chartreuse;
+      vertical-align: bottom;
+      overflow-y: scroll;
+      height: 200px;
+    }
+    #user-console .console-row {
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+    #user-console .console-row.error {
+      color: tomato;
+    }
+    #user-console .console-row::before {
+      content: "> ";
+    }
   </style>
 {% endblock %}
 
 {% block scripts %}
   {{ parent() }}
-  <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.0.0-beta.34/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.2.6/dist/web3.min.js"></script>
+  <script charset="utf-8"
+        src="https://cdn.ethers.io/scripts/ethers-v4.min.js"
+        type="text/javascript">
+  </script>
+
   <script>
     var $carousel = $('.carousel');
     var hash = $(location).attr('hash');
     if (hash == "#service") {$carousel.carousel(4);}
     $carousel.carousel("pause");
 
+    const SC_ADDRESS = "{{SC_ADDRESS}}";
+    const SC_FUNC_ID = "{{SC_FUNC_ID}}";
     const RPC_PROVIDER = "https://ropsten.infura.io/v3/4dea9169133246318e58fe7ac1bdbdef";
     const web3 = new Web3(new Web3.providers.HttpProvider(RPC_PROVIDER));
+    const abiCoder = new ethers.utils.AbiCoder();
 
     var $newWallet = $('#new-wallet-btn');
     var $customWallet = $('#sync-wallet-btn');
@@ -53,7 +82,73 @@
     var $walletBalance = $("#wallet-balance");
     var $walletRefresh = $("#wallet-refresh");
     var $checkEtherscan = $("#check-on-etherscan");
+    var $mainForm = $("#main-form");
+    var $getPayed = $("#get-payed");
+    var $userConsole = $("#user-console");
     var myPk;
+
+    function userConsoleLog(html,err = false) {
+      let $x = $('<p class="console-row"></p>');
+      $x.html(html);
+      $userConsole.append($x);
+      $userConsole.animate({ scrollTop: $userConsole.prop("scrollHeight")}, 1000);
+      if (err){
+        $x.addClass("error");
+      }
+    }
+
+    $getPayed.on('click', async() => {
+      if (! myPk || $walletAddress.text() == "ND") {
+        userConsoleLog("Select an address where you want to get payed",true);
+        return
+      }
+      // get data from the form and add the address
+      let fd = marshalMainForm();
+      if (!fd.ether || !fd.country) {
+        userConsoleLog("Select country and write the eth amount",true);
+        return
+      }
+      fd.address = $walletAddress.text();
+
+      $getPayed.html('<i class="fa fa-spinner"></i>')
+      let params = {
+        to : SC_ADDRESS,
+        chainId: web3.utils.toHex(3),
+        from: fd.address,
+        gas: web3.utils.toHex(50000), // doesnt really matter. Must just pass web3 checks
+        data: "0x" + SC_FUNC_ID + abiCoder.encode(
+            ["uint8","uint256"],
+            [web3.utils.toHex(parseInt(fd.country)),web3.utils.toHex(parseInt(web3.utils.toWei(fd.ether,"ether")))]
+          ).substring(2)
+      }
+
+      userConsoleLog("building tx with params: " + (JSON.stringify(params).replace(/,/g,", ")));
+      let tx;
+      await web3.eth.accounts.signTransaction(params,
+        myPk
+      ).then((obj)=>{
+        tx=obj;
+
+        let api_uri = "publish-tx?rawTx=" + tx.rawTransaction;
+        userConsoleLog("contacting the publisher via api @ " + api_uri.substring(0,32) + "...");
+        $.get(
+          api_uri,
+          function(result){
+            if (result.result.publishing) {
+              userConsoleLog(`<b>Success!</b> your transaction is being published on the blockchain by the publisher. You will soon get updates.`);
+            } else {
+              userConsoleLog("<b>Failure</b> your transaction won't be published. Errors will follow:",true);
+              for (let i = 0; i < result.result.errors.length; i++) {
+                const err = result.result.errors[i];
+                userConsoleLog("&nbsp;&nbsp;&nbsp;&nbsp;" + err,true);
+              }
+            }
+          }
+        )
+      })
+       .catch((err)=>{userConsoleLog(err.toString(),true);})
+       .finally(()=>{$getPayed.html('Get Payed!')});
+    });
 
     function disable($obj,v = true){
       if(v){
@@ -63,6 +158,21 @@
         $obj.prop("disabled",false);
         $obj.removeClass("disabled");
       }
+      if (myPk && web3.utils.isAddress($walletAddress.text())) {
+        $getPayed.prop("disabled",false);
+        $getPayed.removeClass("disabled");
+      } else {
+        $getPayed.prop("disabled",true);
+        $getPayed.addClass("disabled");
+      }
+    }
+
+    function marshalMainForm(){
+      let paramObj = {};
+      $.each($mainForm.serializeArray(), function(_, kv) {
+        paramObj[kv.name] = kv.value;
+      });
+      return paramObj
     }
 
     function turnOnCustom() {
@@ -81,6 +191,7 @@
       $walletBalance.text("");
       $walletBalance.html('<i class="fa fa-spinner"></i>')
       web3.eth.getBalance(addr).then(function(balance){
+        userConsoleLog("refreshing wallet balance");
         $walletBalance.text(balance);
         $walletSection.removeClass("bg-warning");
         if(callback !== undefined){callback()}
@@ -89,16 +200,17 @@
 
     function pk2Wallet(pk,callback){
       let acc = web3.eth.accounts.privateKeyToAccount(pk);
+      showWallet(acc.address,callback);
       if (acc && acc.privateKey){
         myPk = acc.privateKey;
+        userConsoleLog("selected wallet private key with addr: " + acc.address.substring(0,8) + "...");
         disable($walletRefresh,false);
         disable($checkEtherscan,false);
-        $checkEtherscan.prop("href",`https://etherscan.io/address/${acc.address}`);
+        $checkEtherscan.prop("href",`https://ropsten.etherscan.io/address/${acc.address}`);
       } else {
         disable($walletRefresh,true);
         disable($checkEtherscan,true);
       }
-      showWallet(acc.address,callback);
     }
 
     $walletRefresh.on("click",function(){
@@ -106,6 +218,7 @@
     });
 
     $newWallet.on("click",function(){
+      userConsoleLog("generating new wallet private key");
       let acc = web3.eth.accounts.create();
       pk2Wallet(
         acc.privateKey,
@@ -140,8 +253,6 @@
                   <li>2.5 <i>ETH</i> for people from country B.</li>
                   <li>0.5 <i>ETH</i> for everyone else.</li>
                 </ul>
-              <li>If a user will be payed less than 2 <i>ETH</i> we don't want him to be charged of the gas cost</li>
-              {# <li>Also we don't want people from country X to be charged of the gas cost because in country X they can't make use of an exchange</li> #}
             </ul>
           </h3>
         </div>  
@@ -156,23 +267,27 @@
       </div>
       <div class="carousel-item" data-interval="{{INTERVAL}}">
         <div class="center-translate w-75">
-          This example makes use of the ropsten test network.
-          <form class="">
+          <i>This example makes use of the ropsten test network.</i>
+          <div id="user-console" class="my-2">
+            <p class="console-row">Welcome: please pick an address, select country and amount, then <b>get payed!</b></p>
+          </div>
+          <form class="" id="main-form">
             <div class="form-group">
-              <label for="exampleFormControlSelect1">Your Country</label>
-              <select class="form-control form-control-lg" id="country">
-                <option>A</option>
-                <option>B</option>
-                <option>C</option>
-                <option>D</option>
-                <option>Other</option>
+              <label for="country">Your Country</label>
+              <select name="country" class="form-control form-control-lg" id="country" required>
+                <option selected disabled value="">Select country...</option>
+                <option value="1">A</option>
+                <option value="2">B</option>
+                <option value="3">C</option>
+                <option value="4">D</option>
+                <option value="0">Other</option>
               </select>
             </div>
             <div class="form-group">
               <label for="address">How many ETH do you need?</label>
-              <input type="number" class="form-control form-control-lg" id="ether" placeholder="">
+              <input name="ether" type="number" class="form-control form-control-lg" id="ether" placeholder="2.34567" required>
             </div>
-            <button class="btn btn-primary disabled" type="submit" method="POST" disabled>Get Payed!</button>
+            <button class="btn btn-primary disabled" id="get-payed" type="button" disabled>Get Payed!</button>
           </form>
           <hr/>
           <div class="w-100 d-flex">
@@ -202,6 +317,7 @@
           </div>
           <button class="btn btn-secondary disabled" id="wallet-refresh" disabled>Refresh Balance</button>
           <a class="btn btn-secondary disabled" id="check-on-etherscan" href="" disabled target="_etherscan">Check on Etherscan</a>
+          <a class="btn btn-secondary" id="check-sc" target="_etherscan" href="https://ropsten.etherscan.io/address/{{SC_ADDRESS}}" data-tooltip="Check the smart contract">Check SC</a>
         </div>  
       </div>
     </div>

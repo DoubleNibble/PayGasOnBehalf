@@ -76,23 +76,47 @@ const wrapClientTx = (client_tx_buffered) => {
 
 
 //  check that data calls a predefined method
-const callsMethod = (method_id) => {
+const checkCallsMethod = (method_id) => {
     return function(data_hex) {
         let res = data_hex.startsWith(method_id)
-        return res 
+        return res ? [] : ["data doesn't start with " + method_id]
     }
 }
 // check that value is null or 0, because ofc a publisher cannot transfer value from client addresses
-const valueIsNull = () => {
+const checkValueIsNull = () => {
     return function(value_int) {
-        return (! value_int)
+        return (! value_int) ? [] : ["value is not null"]
     }
 }
 // example validation
 const egValidation = () => {
     return {
-        data: callsMethod("2e1a7d4d"),
-        value: valueIsNull()
+        data: (data_hex) => {
+            let errors = checkCallsMethod("2e1a7d4d")(data_hex);
+            let params_hex = data_hex.substring(8);
+            try {
+                let dcd = web3.eth.abi.decodeParameters(['uint8','uint256'],params_hex);
+                let params = {
+                    "country": dcd["0"], // "1" == country A, "2" == country B
+                    "ether": web3.utils.fromWei(dcd["1"],"ether")
+                }
+                switch (params.country) {
+                    case "1":
+                        if (params.ether > 5) {errors.push("Too many ether required for your country");}
+                        break;
+                    case "2":
+                        if (params.ether > 2.5) {errors.push("Too many ether required for your country");}
+                        break;
+                    default:
+                        if (params.ether > 0.5) {errors.push("Too many ether required for your country");}
+                        break;
+                }
+            } catch (err) {
+                errors.push(err.toString())
+            }
+            return errors
+        },
+        value: checkValueIsNull()
     }
 }
 
@@ -103,12 +127,16 @@ const WHITELIST = {
         // client address
         "0xe3b702e91ee01bee9e04ed87c2515e6be81e08b4": {
             // data validation callback
-            data: callsMethod("2e1a7d4d"),
+            data: checkCallsMethod("2e1a7d4d"),
             // value validation callback
-            value: valueIsNull(),
+            value: checkValueIsNull(),
         },
         // client address with validation wrapped
         "0x3673b368babf8a7015cbec48a3ad1b7741bd151e": egValidation(),
+        // the addresses of pk that can be found in tour.twig
+        "0x3ade181fb36aa21268166c4f1b6b5f5596e70e3d": egValidation(),
+        "0x04373c29aab512df6f5f56ded454ec3fa187e947": egValidation(),
+        "0x8e149b7b5ae71aec58928d522d40f9285d9e9ef5": egValidation(),
     },
 }
 
@@ -146,6 +174,7 @@ function checkAgainstWhitelist(obj) {
         let wsc = WHITELIST[obj.to];
         if (wsc === undefined) { errors.push("Smart Contract address not whitelisted") }
         else {
+            console.log(obj.from);
             let wc = wsc[obj.from];
             if (wc === undefined) { errors.push("Client address not whitelisted for this Smart Contract") }
             else {
@@ -153,7 +182,8 @@ function checkAgainstWhitelist(obj) {
                 for (let i = 0; i < TX_FIELDS.length; i++) {
                     let fld = TX_FIELDS[i];
                     let validate = wc[fld] || function () {return true}; // valid if no validator callback
-                    if (! validate(obj[fld])) { errors.push(fld + " invalid")}
+                    let validation_errors = validate(obj[fld]);
+                    if (validation_errors.length) { errors.push(...validation_errors)}
                 }
             }
         }
@@ -169,7 +199,7 @@ function checkAgainstWhitelist(obj) {
 
 // build a tx signed by the publisher
 // that means: build raw tx and sign with publisher pkey
-// web3.accounts.signTransaction is async so we must use async on this util func too and make use of await
+// web3.eth.accounts.signTransaction is async so we must use async on this util func too and make use of await
 const buildPublisherTx = async(params) => {
     /* 
     if all goes well the result will be = {
