@@ -117,10 +117,11 @@
         from: fd.address,
         gas: web3.utils.toHex(50000), // doesnt really matter. Must just pass web3 checks
         data: "0x" + SC_FUNC_ID + abiCoder.encode(
-            ["uint8","uint256"],
-            [web3.utils.toHex(parseInt(fd.country)),web3.utils.toHex(parseInt(web3.utils.toWei(fd.ether,"ether")))]
+            ["address","uint256"],
+            [fd.country,web3.utils.toHex(parseInt(web3.utils.toWei(fd.ether,"ether")))]
           ).substring(2)
       }
+
 
       userConsoleLog("building tx with params: " + (JSON.stringify(params).replace(/,/g,", ")));
       let tx;
@@ -147,7 +148,7 @@
         )
       })
        .catch((err)=>{userConsoleLog(err.toString(),true);})
-       .finally(()=>{$getPayed.html('Get Payed!')});
+       .finally(()=>{$getPayed.html('Pay!')});
     });
 
     function disable($obj,v = true){
@@ -269,25 +270,26 @@
         <div class="center-translate w-75">
           <i>This example makes use of the ropsten test network.</i>
           <div id="user-console" class="my-2">
-            <p class="console-row">Welcome: please pick an address, select country and amount, then <b>get payed!</b></p>
+            <p class="console-row">Welcome: please pick an address, select recipient and amount, then <b>pay!</b></p>
           </div>
           <form class="" id="main-form">
             <div class="form-group">
-              <label for="country">Your Country</label>
-              <select name="country" class="form-control form-control-lg" id="country" required>
+              <label for="country">Recipient Address</label>
+              <input name="country" type="text" class="form-control form-control-lg" id="country" placeholder="paste recipient address 0x..." required>
+              {# <select name="country" class="form-control form-control-lg" id="country" required>
                 <option selected disabled value="">Select country...</option>
                 <option value="1">A</option>
                 <option value="2">B</option>
                 <option value="3">C</option>
                 <option value="4">D</option>
                 <option value="0">Other</option>
-              </select>
+              </select> #}
             </div>
             <div class="form-group">
               <label for="address">How many ETH do you need?</label>
               <input name="ether" type="number" class="form-control form-control-lg" id="ether" placeholder="2.34567" required>
             </div>
-            <button class="btn btn-primary disabled" id="get-payed" type="button" disabled>Get Payed!</button>
+            <button class="btn btn-primary disabled" id="get-payed" type="button" disabled>Pay!</button>
           </form>
           <hr/>
           <div class="w-100 d-flex">

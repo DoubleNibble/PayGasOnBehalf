@@ -46,7 +46,9 @@ router.get('/', async(req, res, next) => {
       let {errors} = checkAgainstWhitelist(query.objTx);
       result.errors.push(...errors);
   }
-  
+
+ 
+
 
   // build publisher tx
   if (! result.errors.length) {
@@ -60,18 +62,18 @@ router.get('/', async(req, res, next) => {
     
     // THIS IS FOR THE POC IMPLEMENTATION ONLY
     // encode params = client_address, ether
-    let _data = SC_FUNC_ID;
-    let _params_hex = query.objTx.data.substring(8);
-    let _dcd = web3.eth.abi.decodeParameters(['uint8','uint256'],_params_hex);
-    let _queryTxDataDecoded = {
-        "country": _dcd["0"],
-        "ether": _dcd["1"],
-    }
-    _data += web3.eth.abi.encodeParameters(["address","uint256"],[query.objTx.from,_queryTxDataDecoded.ether]).substring(2);
+    // let _data = SC_FUNC_ID;
+    // let _params_hex = query.objTx.data.substring(8);
+    // let _dcd = web3.eth.abi.decodeParameters(['address','uint256'],_params_hex);
+    // let _queryTxDataDecoded = {
+    //     "address": _dcd["0"],
+    //     "ether": _dcd["1"],
+    // }
+    // _data += _params_hex;
     let build_obj = await builPublisherTx({
          to: SC_ADDR,
          // SC function id called by the client
-         data: _data
+         data: query.objTx.data
       });
     
     pubTxParams = build_obj.params;

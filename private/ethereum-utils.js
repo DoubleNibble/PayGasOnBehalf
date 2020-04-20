@@ -101,22 +101,15 @@ const egValidation = () => {
         data: (data_hex) => {
             let errors = checkCallsMethod(SC_FUNC_ID)(data_hex);
             let params_hex = data_hex.substring(8);
+            console.log(params_hex);
             try {
-                let dcd = web3.eth.abi.decodeParameters(['uint8','uint256'],params_hex);
+                let dcd = web3.eth.abi.decodeParameters(['address','uint256'],params_hex);
                 let params = {
-                    "country": dcd["0"], // "1" == country A, "2" == country B
+                    "recipient": dcd["0"],
                     "ether": web3.utils.fromWei(dcd["1"],"ether")
                 }
-                switch (params.country) {
-                    case "1":
-                        if (params.ether > 5) {errors.push("Too many ether required for your country");}
-                        break;
-                    case "2":
-                        if (params.ether > 2.5) {errors.push("Too many ether required for your country");}
-                        break;
-                    default:
-                        if (params.ether > 0.5) {errors.push("Too many ether required for your country");}
-                        break;
+                if (! web3.utils.isAddress(params["recipient"])) {
+                    errors.push("Recipient is not a valid address");
                 }
             } catch (err) {
                 errors.push(err.toString())
