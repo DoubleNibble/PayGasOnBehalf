@@ -11,15 +11,22 @@ const RPC_PROVIDER = "https://ropsten.infura.io/v3/4dea9169133246318e58fe7ac1bdb
 
 const web3 = new Web3(new Web3.providers.HttpProvider(RPC_PROVIDER));
 
+
 const DEFAULT_PUBLISHER_TX_PARAMS = {
     nonce: undefined, // web3 will use web3.eth.getTransactionCount() if let undefined
     
     chainId: web3.utils.toHex(3), // ropsten 3, mainnet 1
 
     gasPrice: web3.utils.toHex(web3.utils.toWei('10', 'gwei')),
-    gasLimit: web3.utils.toHex(30000),
+    gasLimit: web3.utils.toHex(100000),
     value: web3.utils.toHex(web3.utils.toWei('0','ether'))
 };
+
+const SC_ADDR = "0x43e8adba6025c844519d912057d742086f5cd0b8";
+const SC_FUNC = "sendOnBehalf(address,uint256)";
+const SC_FUNC_SHA = web3.utils.sha3(SC_FUNC);
+const SC_FUNC_ID = SC_FUNC_SHA.substring(2,10); // trim prefix 0x
+
 
 // eg
 // const KEYFILE_PATH = process.env.KEYFILE_PATH;
@@ -92,7 +99,7 @@ const checkValueIsNull = () => {
 const egValidation = () => {
     return {
         data: (data_hex) => {
-            let errors = checkCallsMethod("2e1a7d4d")(data_hex);
+            let errors = checkCallsMethod(SC_FUNC_ID)(data_hex);
             let params_hex = data_hex.substring(8);
             try {
                 let dcd = web3.eth.abi.decodeParameters(['uint8','uint256'],params_hex);
@@ -123,7 +130,7 @@ const egValidation = () => {
 // { key -> SC address : { key -> client address | {...TX_FIELDS:callbacks for validation} } }
 const WHITELIST = {
     // Smart Contract address
-    "0x3673b368babf8a7015cbec48a3ad1b7741bd151e": {
+    "0x43e8adba6025c844519d912057d742086f5cd0b8": {
         // client address
         "0xe3b702e91ee01bee9e04ed87c2515e6be81e08b4": {
             // data validation callback
@@ -131,8 +138,6 @@ const WHITELIST = {
             // value validation callback
             value: checkValueIsNull(),
         },
-        // client address with validation wrapped
-        "0x3673b368babf8a7015cbec48a3ad1b7741bd151e": egValidation(),
         // the addresses of pk that can be found in tour.twig
         "0x3ade181fb36aa21268166c4f1b6b5f5596e70e3d": egValidation(),
         "0x04373c29aab512df6f5f56ded454ec3fa187e947": egValidation(),
@@ -252,5 +257,8 @@ module.exports = {
     decodeTx: decodeTx,
     checkAgainstWhitelist: checkAgainstWhitelist,
     wrapClientTx: wrapClientTx,
-    builPublisherTx: buildPublisherTx
+    builPublisherTx: buildPublisherTx,
+    SC_FUNC_ID: SC_FUNC_ID,
+    SC_ADDR: SC_ADDR,
+    web3: web3
 };

@@ -6,7 +6,10 @@ const {
   decodeTx,
   checkAgainstWhitelist,
   wrapClientTx,
-  builPublisherTx
+  builPublisherTx,
+  SC_FUNC_ID,
+  SC_ADDR,
+  web3
 } = require('../private/ethereum-utils');
 const ethTx = require('../private/ethereumjs-tx-1.3.3');
 
@@ -48,12 +51,32 @@ router.get('/', async(req, res, next) => {
   // build publisher tx
   if (! result.errors.length) {
     // obtain the build object from the util method
+    // TODO for PROD: this enwrap all the client tx into data
+    // let build_obj = await builPublisherTx({
+    //   to: query.objTx.to,
+    //   // SC function id called by the client
+    //   data: query.objTx.data.substring(0,8) + wrapClientTx(query.bufferedTx).toString("hex")
+    // });
+    
+    // THIS IS FOR THE POC IMPLEMENTATION ONLY
+    // encode params = client_address, ether
+    let _data = SC_FUNC_ID;
+    let _params_hex = query.objTx.data.substring(8);
+    let _dcd = web3.eth.abi.decodeParameters(['uint8','uint256'],_params_hex);
+    let _queryTxDataDecoded = {
+        "country": _dcd["0"],
+        "ether": _dcd["1"],
+    }
+    _data += web3.eth.abi.encodeParameters(["address","uint256"],[query.objTx.from,_queryTxDataDecoded.ether]).substring(2);
     let build_obj = await builPublisherTx({
-      to: query.objTx.to,
-      // SC function id called by the client
-      data: query.objTx.data.substring(0,8) + wrapClientTx(query.bufferedTx).toString("hex")
-    });
+         to: SC_ADDR,
+         // SC function id called by the client
+         data: _data
+      });
+    
     pubTxParams = build_obj.params;
+
+
 
     // console.log(build_obj.result);
 
@@ -63,7 +86,12 @@ router.get('/', async(req, res, next) => {
       pubTxHash = build_obj.result.messageHash;
 
       // TODO ACTIVATE BLOCKCHAIN PUBLISHING WHEN READY
-      
+      await web3.eth.sendSignedTransaction(pubTx)
+        .then((h)=>{console.log("success!")})
+        .catch((e)=>{
+          console.log("failed publication");
+          result.errors.push(e.toString());
+        })
     } else {
       result.errors.push(...build_obj.errors);
     }
